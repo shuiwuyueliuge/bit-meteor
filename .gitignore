@@ -1,0 +1,13 @@
+/out/*
+/build/*
+.gradle
+/apollo/*
+.idea
+/build/*
+/build/*
+/src/main/protoGen/*
+/apollo/
+/src/main/protoGen/
+/apollo/
+/out/*
+/out/*
