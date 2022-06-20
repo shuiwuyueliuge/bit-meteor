@@ -4,7 +4,7 @@ import cn.mayu.bt.bencoding.BencodingData;
 import cn.mayu.bt.bencoding.BencodingDecoder;
 import cn.mayu.bt.torrent.TorrentBencodingDataVisitor;
 import cn.mayu.bt.torrent.TorrentDescriptor;
-import cn.mayu.bt.util.FileUtil;
+import cn.mio.btm.infrastructure.util.FileUtil;
 import org.junit.jupiter.api.Test;
 
 import java.util.*;

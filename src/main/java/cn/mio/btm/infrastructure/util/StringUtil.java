@@ -1,4 +1,4 @@
-package cn.mayu.bt.util;
+package cn.mio.btm.infrastructure.util;
 
 import java.util.Random;
 
