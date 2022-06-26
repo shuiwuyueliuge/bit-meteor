@@ -2,9 +2,10 @@ package cn.mio.btm.domain.task;
 
 import cn.mio.btm.domain.EventBus;
 
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Set;
+import java.net.InetSocketAddress;
+import java.nio.channels.Channel;
+import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -59,8 +60,18 @@ public class Task {
         return peers;
     }
 
-    public void addPeers(Collection<Peer> peers) {
-        this.peers.addAll(peers);
+    public Collection<Peer> filter(Collection<Peer> newPeers) {
+        Map<InetSocketAddress, Peer> map = peers.stream().collect(Collectors.toMap(p -> p.getAddress().getAddress(), Function.identity(), (a, b) -> a));
+        newPeers.forEach(peer -> {
+            Peer cached = map.get(peer.getAddress().getAddress());
+            if (Objects.nonNull(cached) && cached.getState() == PeerState.READY && !cached.getAddress().canReady()) {
+                return;
+            }
+
+            peers.add(peer);
+        });
+
+        return peers.stream().filter(p -> p.getState() == PeerState.READY).collect(Collectors.toList());
     }
 
     public void publishPeerLookupEvent() {
@@ -68,9 +79,22 @@ public class Task {
     }
 
     public void publishPeerBeFoundEvent(Collection<Peer> peers, byte[] infoHash) {
-        EventBus.publish(new PeerBeFoundEvent(peers.stream().map(Peer::getAddress).collect(Collectors.toList()), peerId, infoHash));
+        EventBus.publish(new PeerBeFoundEvent(peers.stream().map(p -> p.getAddress().getAddress()).collect(Collectors.toList()), peerId, infoHash));
     }
 
+    public void peerActive(InetSocketAddress activeAddress) {
+        Map<InetSocketAddress, Peer> map = peers.stream().collect(Collectors.toMap(p -> p.getAddress().getAddress(), Function.identity(), (a, b) -> a));
+        Peer cached = map.get(activeAddress);
+        if (Objects.nonNull(cached) && cached.getState() == PeerState.READY) {
+            peers.remove(cached);
+        }
+
+        peers.add(new Peer(activeAddress, PeerState.ACTIVE));
+    }
+
+    public void publishPeerActiveEvent(Channel channel) {
+        EventBus.publish(new PeerActiveEvent(channel, peerId, this.torrentId));
+    }
 
     @Override
     public String toString() {

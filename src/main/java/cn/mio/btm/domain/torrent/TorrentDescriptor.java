@@ -1,9 +1,10 @@
 package cn.mio.btm.domain.torrent;
 
 import org.apache.commons.codec.binary.Hex;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.*;
 
 /**
  * bt文件描述符
@@ -106,6 +107,8 @@ public class TorrentDescriptor {
         // 20字节SHA1散列值连接而成的字符串，每一片(piece)均含有一个唯一的SHA1散列值
         private byte[] pieces;
 
+        private BitSet finishRecord;
+
         // 每一片(piece)的字节数
         private Long pieceLength;
 
@@ -113,7 +116,37 @@ public class TorrentDescriptor {
         private String name;
 
         // torrent文件中包含的文件列表
-        private List<File> files;
+        private List<MultiFile> files;
+
+        // torrent文件中包含的单个文件
+        private SingleFile singleFile;
+
+        // 分片个数
+        private int pieceSize;
+
+        public long getLength() {
+            return Objects.nonNull(singleFile) ? singleFile.getLength() : files.stream().mapToLong(MultiFile::getLength).sum();
+        }
+
+        public int getPieceSize() {
+            return pieceSize;
+        }
+
+        public SingleFile getSingleFile() {
+            return singleFile;
+        }
+
+        public void setSingleFile(SingleFile singleFile) {
+            this.singleFile = singleFile;
+        }
+
+        public BitSet getFinishRecord() {
+            return finishRecord;
+        }
+
+        public void pieceFinish(int pieceIndex) {
+            this.finishRecord.set(pieceIndex);
+        }
 
         public byte[] getPieces() {
             return pieces;
@@ -121,6 +154,13 @@ public class TorrentDescriptor {
 
         public void setPieces(byte[] pieces) {
             this.pieces = pieces;
+            this.pieceSize = pieces.length / 20;
+            int recordBucket = pieceSize / 8;
+            if ((pieceSize & 8) != 0) {
+                recordBucket++;
+            }
+
+            this.finishRecord = new BitSet(recordBucket);
         }
 
         public Long getPieceLength() {
@@ -139,11 +179,11 @@ public class TorrentDescriptor {
             this.name = name;
         }
 
-        public List<File> getFiles() {
+        public List<MultiFile> getFiles() {
             return files;
         }
 
-        public void setFiles(List<File> files) {
+        public void setFiles(List<MultiFile> files) {
             this.files = files;
         }
 
@@ -158,7 +198,34 @@ public class TorrentDescriptor {
         }
     }
 
-    public static class File {
+    /**
+     * 例如:目标文件大小FileSpace为 1039143285 bytes,文件每个分片大小PerPieceSpace为 1048576 bytes,计算可得：
+     * <p>
+     * 1039143285 = 1048576 x 991 + 4469
+     * <p>
+     * 即 FileSpace= PerPieceSpace*991 + 4469
+     * <p>
+     * 目标文件按照指定大小分片后，为991个满足分片大小的分片文件和1个余数文件，总共是992个小文件。
+     * <p>
+     * 其存储的SHA1每个长度为20 bytes，进而可知pieces中存储的SHA1个数为：
+     * NumberOfSHA1 = 19840/20 = 992
+     * <p>
+     * 即torrent文件的pieces中存储了992个SHA1值。这样每个小文件都对应上了一个SHA1校验值。
+     */
+    public static class SingleFile {
+
+        private final Long length;
+
+        public SingleFile(Long length) {
+            this.length = length;
+        }
+
+        public Long getLength() {
+            return length;
+        }
+    }
+
+    public static class MultiFile {
 
         // 文件名
         private List<String> path;
@@ -166,12 +233,9 @@ public class TorrentDescriptor {
         // 文件的所占字节数
         private Long length;
 
-        public File(List<String> path, Long length) {
+        public MultiFile(List<String> path, Long length) {
             this.path = path;
             this.length = length;
-        }
-
-        public File() {
         }
 
         public List<String> getPath() {
@@ -192,7 +256,7 @@ public class TorrentDescriptor {
 
         @Override
         public String toString() {
-            return "File{" +
+            return "MultiFile{" +
                     "path='" + path + '\'' +
                     ", length=" + length +
                     '}';
@@ -273,12 +337,17 @@ public class TorrentDescriptor {
             return this;
         }
 
-        public Builder setFile(File file) {
+        public Builder setFile(MultiFile file) {
             if (this.info.files == null) {
                 this.info.files = new ArrayList<>();
             }
 
             this.info.files.add(file);
+            return this;
+        }
+
+        public Builder setSingleFile(SingleFile file) {
+            this.info.singleFile = file;
             return this;
         }
 

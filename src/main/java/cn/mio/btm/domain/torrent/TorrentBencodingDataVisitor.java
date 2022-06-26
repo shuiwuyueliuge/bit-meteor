@@ -69,7 +69,7 @@ public class TorrentBencodingDataVisitor implements BencodingDataVisitor {
         BencodingData piecesData = dictionary.getFromDictionary("pieces");
         if (piecesData != null) {
             piecesData.visit(this);
-            builder.setPieces(new String(tempArr).getBytes());
+            builder.setPieces(tempArr);
         }
 
         BencodingData piecesLenData = dictionary.getFromDictionary("piece length");
@@ -88,7 +88,7 @@ public class TorrentBencodingDataVisitor implements BencodingDataVisitor {
             BencodingData lengthData = dictionary.getFromDictionary("length");
             if (lengthData != null) {
                 lengthData.visit(this);
-                builder.setFile(new TorrentDescriptor.File(List.of(name), tempNum));
+                builder.setSingleFile(new TorrentDescriptor.SingleFile(tempNum));
             }
         }
 
@@ -104,7 +104,7 @@ public class TorrentBencodingDataVisitor implements BencodingDataVisitor {
             pathData.visit(this);
             long len = tempNum;
             List<String> path = tempList;
-            builder.setFile(new TorrentDescriptor.File(path, len));
+            builder.setFile(new TorrentDescriptor.MultiFile(path, len));
         }
     }
 

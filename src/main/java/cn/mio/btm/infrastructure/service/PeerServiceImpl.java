@@ -2,6 +2,7 @@ package cn.mio.btm.infrastructure.service;
 
 import cn.mio.btm.domain.task.Peer;
 import cn.mio.btm.domain.task.PeerService;
+import cn.mio.btm.domain.task.PeerState;
 import cn.mio.btm.domain.task.Task;
 import cn.mio.btm.domain.torrent.TorrentDescriptor;
 import cn.mio.btm.infrastructure.bencoding.BencodingParseException;
@@ -31,7 +32,7 @@ public class PeerServiceImpl implements PeerService {
         byte[] infoHash = torrent.getInfoHash();
         String peerId = task.getPeerId();
         long downloaded = task.getDownloaded();
-        long left = torrent.getInfo().getFiles().get(0).getLength();
+        long left = torrent.getInfo().getLength();
         List<Peer> peers = new ArrayList<>();
         TrackerHttpRequest request = new TrackerHttpRequest();
         request.setHost(host);
@@ -47,7 +48,7 @@ public class PeerServiceImpl implements PeerService {
         int readTimeout = 7000;
         try {
             TrackerHttpResponse res = trackerClient.connectTracker(request, connTimeout, readTimeout);
-            peers = res.getPeers().stream().map(Peer::new).collect(Collectors.toList());
+            peers = res.getPeers().stream().map(address -> new Peer(address, PeerState.READY)).collect(Collectors.toList());
             request.setEvent("stopped");
             trackerClient.connectTracker(request, connTimeout, readTimeout);
         } catch (IOException | BencodingParseException e) {
@@ -55,7 +56,7 @@ public class PeerServiceImpl implements PeerService {
             request.setNoPeerId(0);
             try {
                 TrackerHttpResponse res = trackerClient.connectTracker(request, connTimeout, readTimeout);
-                peers = res.getPeers().stream().map(Peer::new).collect(Collectors.toList());
+                peers = res.getPeers().stream().map(address -> new Peer(address, PeerState.READY)).collect(Collectors.toList());
                 request.setEvent("stopped");
                 trackerClient.connectTracker(request, connTimeout, readTimeout);
             } catch (IOException | BencodingParseException ex) {
@@ -63,7 +64,7 @@ public class PeerServiceImpl implements PeerService {
             }
         }
 
-        LOG.info("[Peer Finder] isa list: " + peers);
+        LOG.debug("[Peer Finder] be found address list: " + peers);
         return peers;
     }
 }

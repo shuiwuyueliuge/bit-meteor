@@ -1,5 +1,10 @@
 package cn.mio.btm.infrastructure.protocol;
 
+import org.apache.commons.codec.binary.Hex;
+
+import java.util.Arrays;
+import java.util.Objects;
+
 /**
  * peer握手请求
  *
@@ -18,25 +23,67 @@ public class PeerHandshakeResponse {
 
     private static final String P_STR = "BitTorrent protocol";
 
+    private final byte pStrLen;
+
+    private final String pStr;
+
     @SuppressWarnings("all")
-    private static final byte[] RESERVED = new byte[8];
+    private final byte[] reserved;
 
     private final String peerId;
 
     private final byte[] infoHash;
 
-    public PeerHandshakeResponse(String peerId, byte[] infoHash) {
-        this.peerId = peerId;
-        this.infoHash = infoHash;
+    public PeerHandshakeResponse(byte[] b) {
+        this.pStrLen = b[0];
+        this.pStr = new String(b, 1, 19);
+        this.reserved = new byte[8];
+        System.arraycopy(b, 20, reserved, 0, reserved.length);
+        this.infoHash = new byte[20];
+        System.arraycopy(b, 28, infoHash, 0, infoHash.length);
+        this.peerId = new String(b, 48, 20);
     }
 
-    public byte[] getHandshakeRequest() {
-        byte[] handshakeData = new byte[1 + P_STR.length() + RESERVED.length + infoHash.length + peerId.length()];
-        handshakeData[0] = P_STR_LEN;
-        System.arraycopy(P_STR.getBytes(), 0, handshakeData, 1, P_STR.length());
-        System.arraycopy(RESERVED, 0, handshakeData, 1 + P_STR.length(), RESERVED.length);
-        System.arraycopy(infoHash, 0, handshakeData, 1 + P_STR.length() + RESERVED.length, infoHash.length);
-        System.arraycopy(peerId.getBytes(), 0, handshakeData, 1 + P_STR.length() + RESERVED.length + infoHash.length, peerId.length());
-        return handshakeData;
+    public byte[] getReserved() {
+        return reserved;
+    }
+
+    public String getPeerId() {
+        return peerId;
+    }
+
+    public byte[] getInfoHash() {
+        return infoHash;
+    }
+
+    public byte getPStrLen() {
+        return pStrLen;
+    }
+
+    public String getPStr() {
+        return pStr;
+    }
+
+    public boolean validate(byte[] infoHash) {
+        if (this.pStrLen != P_STR_LEN) {
+            return false;
+        }
+
+        if (!Objects.equals(this.pStr, P_STR)) {
+            return false;
+        }
+
+        return Objects.equals(Hex.encodeHexString(this.infoHash), Hex.encodeHexString(infoHash));
+    }
+
+    @Override
+    public String toString() {
+        return "PeerHandshakeResponse{" +
+                "pStrLen=" + pStrLen +
+                ", pStr='" + pStr + '\'' +
+                ", reserved=" + Arrays.toString(reserved) +
+                ", peerId='" + peerId + '\'' +
+                ", infoHash=" + Arrays.toString(infoHash) +
+                '}';
     }
 }

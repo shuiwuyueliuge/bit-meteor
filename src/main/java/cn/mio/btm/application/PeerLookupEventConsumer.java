@@ -62,10 +62,11 @@ public class PeerLookupEventConsumer implements EventBus.EventConsumer {
                         return;
                     }
 
+
                     Collection<Peer> peers = peerService.getPeers(task, torr);
-                    task.addPeers(peers);
+                    Collection<Peer> readyPeers = task.filter(peers);
                     taskRepository.save(task);
-                    task.publishPeerBeFoundEvent(peers, torr.getInfoHash());
+                    task.publishPeerBeFoundEvent(readyPeers, torr.getInfoHash());
                     run(task);
                 }));
     }

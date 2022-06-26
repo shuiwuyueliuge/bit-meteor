@@ -2,9 +2,11 @@ package cn.mio.btm.application;
 
 import cn.mio.btm.domain.EventBus;
 import cn.mio.btm.domain.task.PeerBeFoundEvent;
+import cn.mio.btm.domain.task.TaskRepository;
 import cn.mio.btm.infrastructure.log.LogFactory;
 import cn.mio.btm.infrastructure.log.Logger;
 import cn.mio.btm.infrastructure.protocol.PeerHandshakeRequest;
+import cn.mio.btm.infrastructure.protocol.PeerHandshakeResponse;
 import org.apache.commons.codec.binary.Hex;
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -13,7 +15,6 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -27,7 +28,7 @@ public class PeerBeFoundEventConsumer implements EventBus.EventConsumer {
 
     private final Map<String, Selector> map = new ConcurrentHashMap<>();
 
-    private final List<InetSocketAddress> isaCache = new CopyOnWriteArrayList<>();
+    private final TaskRepository taskRepository;
 
     private final int worker = Runtime.getRuntime().availableProcessors() * 2;
 
@@ -38,6 +39,10 @@ public class PeerBeFoundEventConsumer implements EventBus.EventConsumer {
             TimeUnit.SECONDS,
             new LinkedBlockingQueue<>(),
             new PeerBeFoundEventConsumer.PeerThreadFactory());
+
+    public PeerBeFoundEventConsumer(TaskRepository taskRepository) {
+        this.taskRepository = taskRepository;
+    }
 
     @Override
     public void receive(EventBus.Event event) {
@@ -55,10 +60,6 @@ public class PeerBeFoundEventConsumer implements EventBus.EventConsumer {
         });
 
         for (InetSocketAddress isa : beFoundEvent.getAddresses()) {
-            if (isaCache.contains(isa)) {
-                continue;
-            }
-
             try {
                 SocketChannel channel = SocketChannel.open();
                 channel.configureBlocking(false);
@@ -68,14 +69,13 @@ public class PeerBeFoundEventConsumer implements EventBus.EventConsumer {
                 continue;
             }
 
-            isaCache.add(isa);
-            LOG.info("[Peer Connect] peerId: " + peerId + " isa: " + isa);
+            LOG.debug("[Peer Connect] peerId: " + peerId + " address: " + isa);
         }
     }
 
     private void connectPeer(Selector selector, String peerId, byte[] infoHash) {
         peerExecutor.execute(() -> {
-            int keys = 0;
+            int keys;
             try {
                 keys = selector.select(1000);
             } catch (IOException e) {
@@ -98,33 +98,52 @@ public class PeerBeFoundEventConsumer implements EventBus.EventConsumer {
                             channel.finishConnect();
                         }
 
-                        LOG.info("[Peer Connect] connect success: " + sk);
+                        LOG.debug("[Peer Connect] connect success: " + sk);
                         byte[] handshakeData = new PeerHandshakeRequest(peerId, infoHash).getHandshakeRequest();
-                        LOG.info("[Peer Connect] write handshake data: " + Hex.encodeHexString(handshakeData) + " to " + sk);
+                        LOG.debug("[Peer Connect] write handshake data: " + Hex.encodeHexString(handshakeData) + " to " + sk);
                         channel.write(ByteBuffer.wrap(handshakeData));
                         channel.register(selector, SelectionKey.OP_READ);
                     }
 
                     if (sk.isReadable()) {
-                        LOG.info("[Peer Connect] can read: " + sk);
+                        LOG.debug("[Peer Connect] can read: " + sk);
                         SocketChannel channel = (SocketChannel) sk.channel();
                         ByteBuffer byteBuffer = ByteBuffer.allocate(68);
                         channel.read(byteBuffer);
                         byteBuffer.flip();
                         byte[] b = byteBuffer.array();
-                        byte pstrlen = b[0];
-                        String pstr = new String(b, 1, 19);
-                        byte[] reserved = new byte[8];
-                        System.arraycopy(b, 20, reserved, 0, reserved.length);
-                        byte[] infoHash1 = new byte[20];
-                        System.arraycopy(b, 28, infoHash1, 0, infoHash1.length);
-                        String peerId1 = new String(b, 48, 20);
-                        System.out.println(peerId1);
+                        PeerHandshakeResponse handshakeResponse = new PeerHandshakeResponse(b);
+                        LOG.debug("peer handshake response: " + handshakeResponse);
+                        if (handshakeResponse.validate(infoHash)) {
+                            InetSocketAddress remote = (InetSocketAddress) channel.getRemoteAddress();
+                            LOG.info("peer handshake success and remote: " + remote + " peerId: " + handshakeResponse.getPeerId());
+                            taskRepository.findById(peerId)
+                                    .ifPresent(task -> {
+                                        task.peerActive(remote);
+                                        taskRepository.save(task);
+                                        task.publishPeerActiveEvent(channel);
+                                    });
+//                            taskRepository.findById(peerId)
+//                                    .flatMap(task -> torrentRepository.findById(task.getTorrentId()))
+//                                    .ifPresent(torr -> {
+//                                        BitSet bitSet = new BitSet(torr.getInfo().getPieceSize());
+//                                        byte[] arr = bitSet.toByteArray();
+//                                        byte[] req = new byte[2 + arr.length];
+//                                        req[0] = (byte)(arr.length + 1);
+//                                        req[1] = 5;
+//                                        System.arraycopy(arr, 0, req, 2, arr.length);
+//                                        try {
+//                                            channel.write(ByteBuffer.wrap(req));
+//                                            channel.register(selector, SelectionKey.OP_READ);
+//                                        } catch (IOException e) {
+//                                            e.printStackTrace();
+//                                        }
+//                                    });
+                        }
                     }
 
                     keyIterator.remove();
                 } catch (Exception e) {
-                    System.out.println(e.getMessage());
                     keyIterator.remove();
                 }
             }
