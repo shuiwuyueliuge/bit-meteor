@@ -1,25 +1,24 @@
 package cn.mio.btm.domain.task;
 
 import cn.mio.btm.domain.EventBus;
-import java.net.InetSocketAddress;
 import java.util.Collection;
 
 public class PeerBeFoundEvent implements EventBus.Event {
 
-    private final Collection<InetSocketAddress> addresses;
+    private final Collection<Peer> peers;
 
     private final String peerId;
 
     private final byte[] infoHash;
 
-    public PeerBeFoundEvent(Collection<InetSocketAddress> addresses, String peerId, byte[] infoHash) {
-        this.addresses = addresses;
+    public PeerBeFoundEvent(Collection<Peer> peers, String peerId, byte[] infoHash) {
+        this.peers = peers;
         this.peerId = peerId;
         this.infoHash = infoHash;
     }
 
-    public Collection<InetSocketAddress> getAddresses() {
-        return addresses;
+    public Collection<Peer> getPeers() {
+        return peers;
     }
 
     public String getPeerId() {

@@ -1,24 +1,23 @@
 package cn.mio.btm.domain.task;
 
 import cn.mio.btm.domain.EventBus;
-import java.nio.channels.Channel;
 
 public class PeerActiveEvent implements EventBus.Event {
 
-    private final Channel channel;
+    private final Peer peer;
 
     private final String peerId;
 
     private final String torrId;
 
-    public PeerActiveEvent(Channel channel, String peerId, String torrId) {
-        this.channel = channel;
+    public PeerActiveEvent(Peer peer, String peerId, String torrId) {
+        this.peer = peer;
         this.peerId = peerId;
         this.torrId = torrId;
     }
 
-    public Channel getChannel() {
-        return channel;
+    public Peer getPeer() {
+        return peer;
     }
 
     public String getPeerId() {

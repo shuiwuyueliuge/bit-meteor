@@ -6,7 +6,6 @@ import cn.mio.btm.domain.task.TaskRepository;
 import cn.mio.btm.domain.torrent.TorrentDescriptorRepository;
 import cn.mio.btm.infrastructure.log.LogFactory;
 import cn.mio.btm.infrastructure.log.Logger;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
@@ -48,42 +47,45 @@ public class PeerActiveEventConsumer implements EventBus.EventConsumer {
     @Override
     public void receive(EventBus.Event event) {
         PeerActiveEvent activeEvent = (PeerActiveEvent) event;
-        SocketChannel channel = (SocketChannel) activeEvent.getChannel();
-        Selector selector = map.computeIfAbsent(activeEvent.getPeerId(), k -> {
-            try {
-                Selector newSelector = Selector.open();
-                activePeer(newSelector);
-                return newSelector;
-            } catch (IOException e) {
-                throw new IllegalStateException(e);
-            }
-        });
+        activeEvent.getPeer();
 
-        torrentRepository.findById(activeEvent.getTorrId())
-                .ifPresent(torr -> {
-                    try {
-                        channel.register(selector, SelectionKey.OP_READ);
-                        int recordBucket = torr.getInfo().getPieceSize() / 8;
-                        if ((torr.getInfo().getPieceSize() % 8) != 0) {
-                            recordBucket++;
-                        }
-
-                        byte[] arr = new byte[recordBucket];
-                        byte[] req = new byte[5 + arr.length];
-                        byte[] b = integerToBytes(arr.length + 1);
-                        System.arraycopy(b, 0, req, 0, b.length);
-                        req[4] = (byte) 5;
-                        System.arraycopy(arr, 0, req, 5, arr.length);
-                        channel.write(ByteBuffer.wrap(req));
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                });
-        try {
-            LOG.debug("[Peer Active] peerId: " + activeEvent.getPeerId() + " address: " + channel.getRemoteAddress());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+//        PeerActiveEvent activeEvent = (PeerActiveEvent) event;
+//        SocketChannel channel = (SocketChannel) activeEvent.getChannel();
+//        Selector selector = map.computeIfAbsent(activeEvent.getPeerId(), k -> {
+//            try {
+//                Selector newSelector = Selector.open();
+//                activePeer(newSelector);
+//                return newSelector;
+//            } catch (IOException e) {
+//                throw new IllegalStateException(e);
+//            }
+//        });
+//
+//        torrentRepository.findById(activeEvent.getTorrId())
+//                .ifPresent(torr -> {
+//                    try {
+//                        channel.register(selector, SelectionKey.OP_READ);
+//                        int recordBucket = torr.getInfo().getPieceSize() / 8;
+//                        if ((torr.getInfo().getPieceSize() % 8) != 0) {
+//                            recordBucket++;
+//                        }
+//
+//                        byte[] arr = new byte[recordBucket];
+//                        byte[] req = new byte[5 + arr.length];
+//                        byte[] b = integerToBytes(arr.length + 1);
+//                        System.arraycopy(b, 0, req, 0, b.length);
+//                        req[4] = (byte) 5;
+//                        System.arraycopy(arr, 0, req, 5, arr.length);
+//                        channel.write(ByteBuffer.wrap(req));
+//                    } catch (Exception e) {
+//                        e.printStackTrace();
+//                    }
+//                });
+//        try {
+//            LOG.debug("[Peer Active] peerId: " + activeEvent.getPeerId() + " address: " + channel.getRemoteAddress());
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
     }
 
     private static byte[] integerToBytes(int data) {

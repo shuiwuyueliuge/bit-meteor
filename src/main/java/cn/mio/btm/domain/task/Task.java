@@ -1,9 +1,7 @@
 package cn.mio.btm.domain.task;
 
 import cn.mio.btm.domain.EventBus;
-
 import java.net.InetSocketAddress;
-import java.nio.channels.Channel;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -79,7 +77,7 @@ public class Task {
     }
 
     public void publishPeerBeFoundEvent(Collection<Peer> peers, byte[] infoHash) {
-        EventBus.publish(new PeerBeFoundEvent(peers.stream().map(p -> p.getAddress().getAddress()).collect(Collectors.toList()), peerId, infoHash));
+        EventBus.publish(new PeerBeFoundEvent(peers, peerId, infoHash));
     }
 
     public void peerActive(InetSocketAddress activeAddress) {
@@ -92,8 +90,8 @@ public class Task {
         peers.add(new Peer(activeAddress, PeerState.ACTIVE));
     }
 
-    public void publishPeerActiveEvent(Channel channel) {
-        EventBus.publish(new PeerActiveEvent(channel, peerId, this.torrentId));
+    public void publishPeerActiveEvent(Peer peer) {
+        EventBus.publish(new PeerActiveEvent(peer, peerId, this.torrentId));
     }
 
     @Override
