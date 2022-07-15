@@ -5,6 +5,7 @@ import cn.mio.btm.infrastructure.protocol.PeerHandshakeRequest;
 import cn.mio.btm.infrastructure.protocol.PeerHandshakeResponse;
 import cn.mio.btm.infrastructure.util.SegmentLock;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
@@ -132,7 +133,7 @@ public class NioPeerClient implements PeerClient {
     public PeerResFuture bitfield() {
         return null;
     }
- 1
+
     @Override
     public PeerResFuture request() {
         return null;

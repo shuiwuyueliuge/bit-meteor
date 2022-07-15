@@ -1,6 +1,6 @@
 package cn.mio.btm;
 
-import cn.mio.btm.application.PeerActiveEventConsumer;
+//import cn.mio.btm.application.PeerActiveEventConsumer;
 import cn.mio.btm.application.PeerBeFoundEventConsumer;
 import cn.mio.btm.application.PeerLookupEventConsumer;
 import cn.mio.btm.application.TaskCommandService;
@@ -44,11 +44,11 @@ public class BitMeteorLauncher {
                 idGenerator, taskRepository, torrentRepository, countService
         );
 
-        EventBus.addConsumer(
-                new PeerActiveEventConsumer(taskRepository, torrentRepository),
-                new PeerBeFoundEventConsumer(taskRepository),
-                new PeerLookupEventConsumer(peerService, torrentRepository, taskRepository)
-        );
+//        EventBus.addConsumer(
+//                new PeerActiveEventConsumer(taskRepository, torrentRepository),
+//                new PeerBeFoundEventConsumer(taskRepository),
+//                new PeerLookupEventConsumer(peerService, torrentRepository, taskRepository)
+//        );
 
         LOG.info("[Bit Meteor] start...");
 
