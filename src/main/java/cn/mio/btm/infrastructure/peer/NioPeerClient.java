@@ -1,6 +1,7 @@
 package cn.mio.btm.infrastructure.peer;
 
 import cn.mio.btm.domain.task.Peer;
+import cn.mio.btm.domain.torrent.TorrentDescriptor;
 import cn.mio.btm.infrastructure.protocol.PeerHandshakeRequest;
 import cn.mio.btm.infrastructure.protocol.PeerHandshakeResponse;
 import cn.mio.btm.infrastructure.util.SegmentLock;
@@ -10,10 +11,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
 
@@ -21,17 +19,22 @@ public class NioPeerClient implements PeerClient {
 
     private static final Map<String, Selector> CONN_SELECTOR_HOLDER = new ConcurrentHashMap<>();
 
-//    private static final Map<String, Selector> P2P_SELECTOR_HOLDER = new ConcurrentHashMap<>();
+    private static final Map<String, Selector> P2P_SELECTOR_HOLDER = new ConcurrentHashMap<>();
 
     private static final ExecutorService EXECUTOR = Executors.newFixedThreadPool(1);
 
-    private final Collection<PeerConnection> connections;
-
     private final Peer peer;
+
+    private final Map<String, PeerConnection> connections;
+
+    private final Map<PeerProtocolTypeEnum, List<PeerResFuture>> futures;
+
+    private String peerId;
 
     NioPeerClient(Peer peer) {
         this.peer = peer;
-        this.connections = new CopyOnWriteArrayList<>();
+        this.futures = new ConcurrentHashMap<>();
+        this.connections = new ConcurrentHashMap<>();
     }
 
     @Override
@@ -49,6 +52,7 @@ public class NioPeerClient implements PeerClient {
             }
         }
 
+        this.peerId = peerId;
         SocketChannel channel = SocketChannel.open();
         channel.configureBlocking(false);
         channel.connect(this.peer.getAddress().getAddress());
@@ -117,7 +121,7 @@ public class NioPeerClient implements PeerClient {
                     PeerHandshakeResponse handshakeResponse = new PeerHandshakeResponse(b);
                     if (handshakeResponse.validate(infoHash)) {
                         PeerConnection connection = new PeerConnectionImpl(channel);
-                        connections.add(connection);
+                        connections.put(peerId, connection);
                         future.complete(connection);
                     }
                 }
@@ -129,9 +133,50 @@ public class NioPeerClient implements PeerClient {
         });
     }
 
+    private void lookupResponse(PeerResFuture future) {
+
+    }
+
     @Override
-    public PeerResFuture bitfield() {
-        return null;
+    public PeerResFuture bitfield(TorrentDescriptor torr) throws IOException {
+        Selector cached = CONN_SELECTOR_HOLDER.get(peerId);
+        if (Objects.isNull(cached)) {
+            Lock lock = SegmentLock.getLock(peerId);
+            try {
+                lock.lock();
+                cached = Selector.open();
+                CONN_SELECTOR_HOLDER.put(peerId, cached);
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        int recordBucket = torr.getInfo().getPieceSize() / 8;
+        if ((torr.getInfo().getPieceSize() % 8) != 0) {
+            recordBucket++;
+        }
+
+        byte[] arr = new byte[recordBucket];
+        byte[] req = new byte[5 + arr.length];
+        byte[] b = integerToBytes(arr.length + 1);
+        System.arraycopy(b, 0, req, 0, b.length);
+        req[4] = PeerProtocolTypeEnum.BIT_FIELD.getType();
+        System.arraycopy(arr, 0, req, 5, arr.length);
+        channel.write(ByteBuffer.wrap(req));
+        PeerResFuture future = new PeerResFuture();
+        List<PeerResFuture> futureList = futures.computeIfAbsent(PeerProtocolTypeEnum.BIT_FIELD, k -> new CopyOnWriteArrayList<>());
+        futureList.add(future);
+        lookupResponse(future);
+        return future;
+    }
+
+    private static byte[] integerToBytes(int data) {
+        byte[] res = new byte[4];
+        res[0] = (byte) (data);
+        res[1] = (byte) (data >> 8);
+        res[2] = (byte) (data >> 16);
+        res[3] = (byte) (data >> 24);
+        return res;
     }
 
     @Override
